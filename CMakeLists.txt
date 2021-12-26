@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 14)
 set(cartographer_DIR /home/moi/include/cartographer/share/cartographer)
 
 # 日志相关
-list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
+#list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 set(USE_STACK_TRACE_LOGGER ON CACHE BOOL "Enable automatic stack trace logger of google-glog")
 set(USE_STACK_TRACE_LOGGER ON)
 if (USE_STACK_TRACE_LOGGER)

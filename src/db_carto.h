@@ -19,8 +19,7 @@
 #include "cartographer/transform/rigid_transform.h"
 #include "cartographer/mapping/pose_extrapolator.h"
 #include "cartographer/common/fixed_ratio_sampler.h"
-#include "cartographer/common/make_unique.h"
-
+#include "absl/strings/str_cat.h"
 
 // 轨迹参数结构体
 struct TrajectoryOptions {

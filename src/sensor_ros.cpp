@@ -199,7 +199,7 @@ std::unique_ptr<cartographer::sensor::OdometryData> sensor_ros::ToOdomData(
    vector3.x =msg->pose.pose.position.x;vector3.y =msg->pose.pose.position.y;vector3.z =msg->pose.pose.position.z;
    cartographer::transform::Rigid3d pose{ToEigen(vector3),QuaternionToEigen(msg->pose.pose.orientation)};
 
-    return cartographer::common::make_unique<cartographer::sensor::OdometryData>(
+    return absl::make_unique<cartographer::sensor::OdometryData>(
             cartographer::sensor::OdometryData{time,pose});
 }
 /**
@@ -237,7 +237,7 @@ std::unique_ptr<cartographer::sensor::ImuData> sensor_ros::ToImuData(
     // 获取当前时间
     const cartographer::common::Time time = FromRos(msg->header.stamp);
     // 构造  cartographer格式数据
-    return cartographer::common::make_unique<cartographer::sensor::ImuData>(
+    return absl::make_unique<cartographer::sensor::ImuData>(
             cartographer::sensor::ImuData{
                     time,
                     ToEigen(msg->linear_acceleration),
@@ -399,7 +399,7 @@ std::unique_ptr<nav_msgs::OccupancyGrid>
 sensor_ros::CreateOccupancyGridMsg(const cartographer::io::PaintSubmapSlicesResult &painted_slices,
                                 const double resolution, const std::string &frame_id, const ros::Time &time)
 {
-    auto occupancy_grid = cartographer::common::make_unique<nav_msgs::OccupancyGrid>();
+    auto occupancy_grid = absl::make_unique<nav_msgs::OccupancyGrid>();
 
     const int width = cairo_image_surface_get_width(painted_slices.surface.get());
     const int height = cairo_image_surface_get_height(painted_slices.surface.get());

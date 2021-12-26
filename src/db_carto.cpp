@@ -17,7 +17,7 @@ cartographer_interface::cartographer_interface(const std::string& map_path,
     // 从配置文件中加载配置参数
     std::tie(m_node_options, m_trajectory_options) = LoadOptions(configuration_directory,configuration_basename);
     // 调用 cartographer 接口，构造 MapBuilder 类
-    m_map_builder = cartographer::common::make_unique<cartographer::mapping::MapBuilder>(m_node_options.map_builder_options);
+    m_map_builder = absl::make_unique<cartographer::mapping::MapBuilder>(m_node_options.map_builder_options);
     // 纯定位模式下，加载现有的地图数据
     if(m_trajectory_options.trajectory_builder_options.pure_localization())
     {
@@ -224,7 +224,7 @@ cartographer_interface::LoadOptions(const std::string &configuration_directory,
                                     const std::string &configuration_basename)
 {
     // 获取文件名
-    auto file_resolver = cartographer::common::make_unique<
+    auto file_resolver = absl::make_unique<
             cartographer::common::ConfigurationFileResolver>(
             std::vector<std::string>{configuration_directory});
     const std::string code =
