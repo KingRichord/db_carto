@@ -3,8 +3,8 @@
 #include "sensor_ros.h"
 #include <std_msgs/UInt16.h>
 #include <dbrobot_msg/mapping_state.h>
-
 #include <glog/logging.h>
+using TrajectoryState =::cartographer::mapping::PoseGraphInterface::TrajectoryState;
 class SlamManager {
 public:
     SlamManager();
@@ -13,7 +13,7 @@ public:
     void end_slam();
     void SlamManagerCallback(const std_msgs::UInt16ConstPtr &msg);
     bool mapping_stateCallBack(dbrobot_msg::mapping_state::Request &rep, dbrobot_msg::mapping_state::Response &res) const;
-
+    std::string TrajectoryStateToString(const TrajectoryState trajectory_state);
 private:
     std::shared_ptr<cartographer_interface> localize{nullptr};
     std::shared_ptr<sensor_ros> msg{nullptr};
@@ -21,7 +21,6 @@ private:
     ros::Subscriber robot_manager_sub_;
     ros::Publisher p_mappping_state_;
     ros::ServiceServer mappping_state_;
-
 
     ros::Publisher occupancy_grid_publisher;
     ros::Subscriber m_laser_subscriber;
@@ -33,8 +32,7 @@ private:
 
 SlamManager::SlamManager()
 {
-    //核心启动模组
-    LOG(INFO)<<"SlamManager构造完成";
+    LOG(INFO)<<"Slam管理系统构造完成";
     robot_manager_sub_ = m_node.subscribe("/rm_to_slam", 1, &SlamManager::SlamManagerCallback, this);
     mappping_state_ = m_node.advertiseService<dbrobot_msg::mapping_state::Request, dbrobot_msg::mapping_state::Response>(
             "mapping_state", boost::bind(&SlamManager::mapping_stateCallBack, this, _1, _2));
@@ -52,23 +50,39 @@ bool SlamManager::mapping_stateCallBack(dbrobot_msg::mapping_state::Request &rep
 
 SlamManager::~SlamManager() {
 }
+// 返回轨迹的状态
+std::string SlamManager::TrajectoryStateToString(const TrajectoryState trajectory_state) {
+    switch (trajectory_state) {
+        case TrajectoryState::ACTIVE:
+            return "ACTIVE";
+        case TrajectoryState::FINISHED:
+            return "FINISHED";
+        case TrajectoryState::FROZEN:
+            return "FROZEN";
+        case TrajectoryState::DELETED:
+            return "DELETED";
+    }
+    return "";
+}
 
 void SlamManager::start_slam() {
+        LOG(INFO)<<"开始创建地图";
         mapping_ = true;
         std_msgs::UInt16 info;
         info.data = 1;
         p_mappping_state_.publish(info);
-
+        LOG(INFO)<<"创建cartographer核心";
         localize =  std::make_shared<cartographer_interface>("/home/lyc/Downloads/b2-2016-04-05-14-44-52.bag.pbstream",
                                               "/home/moi/3_ws/src/slam/db_carto/configuration_files",
                                               "revo_lds.lua");
+        LOG(INFO)<<"创建订阅消息接口";
         msg = std::make_shared<sensor_ros>(*localize, 0.03); //修改地图分辨率
+        LOG(INFO)<<"开始订阅消息";
         trajectory_node_list_publisher =
                 m_node.advertise<visualization_msgs::MarkerArray>(
                         "Trajectory", 1);
         // 占用栅格地图
-        occupancy_grid_publisher = m_node.advertise<nav_msgs::OccupancyGrid>("map", 1,
-                                                                                                   true /* latched */);
+        occupancy_grid_publisher = m_node.advertise<nav_msgs::OccupancyGrid>("map", 1,true);
         // 订阅传感器数据
         // 激光雷达数据 + IMU 数据
         // 调用回调函数 ros_msg::laser_callback  ros_msg::imu_callback
@@ -83,14 +97,14 @@ void SlamManager::start_slam() {
             // 发布地图和轨迹数据
             if (count % 40 == 0) //20HZ，五秒发布一次
             {
-                LOG(INFO) << "publish new map!";
+                LOG(INFO) << "发布地图更新!";
                 occupancy_grid_publisher.publish(*msg->DrawAndPublish()); // publish map
             }
             if (count % 2 == 0) {
+                std_msgs::UInt16 info;info.data = 1;
+                p_mappping_state_.publish(info);
                 msg->publishTF();
             }
-
-            // publish traje
             trajectory_node_list_publisher.publish(msg->GetTrajectoryNodeList());
             ros::spinOnce();
             loop_rate.sleep();
@@ -99,42 +113,40 @@ void SlamManager::start_slam() {
 
 void SlamManager::end_slam() {
     if (msg == nullptr &&localize == nullptr) {
-        ROS_INFO("kn null cannot stop slam");
-        std_msgs::UInt16 info;
-        info.data = 0;
+        LOG(WARNING)<<"地图创建已经结束";
+        std_msgs::UInt16 info;info.data = 0;
         p_mappping_state_.publish(info);
         return;
     }
     else {
-        LOG(WARNING)<<"释放智能指针";
-        localize->get_map_builder()->pose_graph()->RunFinalOptimization();
-        int trajectory_num =localize->get_map_builder()->num_trajectory_builders();
+        LOG(WARNING)<<"收到停止创建地图命令";
+        int trajectory_num = localize->get_map_builder()->num_trajectory_builders();
         for (int i = 0; i < trajectory_num; ++i) {
-            std::cout<<"trajectory_id: "<<i <<std::endl;
+            std::cout << "delete trajectory_id: " << i << std::endl;
+            LOG(WARNING)<<"正在保存当前轨迹";
             localize->get_map_builder()->FinishTrajectory(i);
+            LOG(WARNING)<<"正在优化地图";
+            localize->get_map_builder()->pose_graph()->RunFinalOptimization();
+
+            localize->get_map_builder()->pose_graph()->DeleteTrajectory(i);
         }
-        // for (int i = 0; i < trajectory_num; ++i) {
-        //     std::cout<<"delete trajectory_id: "<<i <<std::endl;
-        //     localize->get_map_builder()->pose_graph()->DeleteTrajectory(i);
-        // }
-        if(localize->get_map_builder()->pose_graph()->IsTrajectoryFinished(0))
-        {
-            LOG(WARNING)<<"释放智能指针完成";
-            delete m_laser_subscriber;
-            delete m_odometry_subscriber;
-            delete occupancy_grid_publisher;
-            delete trajectory_node_list_publisher;
-            msg = nullptr;
-            mapping_ = false;
-            LOG(WARNING)<<"释放智能指针完成";
-            localize = nullptr;
+        const auto trajectory_states = localize->get_map_builder()->pose_graph()->GetTrajectoryStates();
+        for (auto stats: trajectory_states) {
+            LOG(INFO) << "轨迹的id：" << stats.first << "轨迹的状态：" << TrajectoryStateToString(stats.second);
         }
+        LOG(WARNING)<<"关闭所有消息输入";
+        m_laser_subscriber.shutdown();
+        m_odometry_subscriber.shutdown();
+        occupancy_grid_publisher.shutdown();
+        trajectory_node_list_publisher.shutdown();
+        msg.reset();
+        localize.reset();
+        mapping_ = false;
+        LOG(WARNING)<<"建图结束";
         while (ros::ok()) {
-            // if (msg == nullptr &&localize == nullptr)  {
-            //     std_msgs::UInt16 info;
-            //     info.data = 0;
-            //     p_mappping_state_.publish(info);
-            // }
+            std_msgs::UInt16 info;
+            info.data = 0;
+            p_mappping_state_.publish(info);
             ros::Duration(0.05).sleep();
             ros::spinOnce();
         }
