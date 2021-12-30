@@ -16,7 +16,7 @@ cartographer_interface::cartographer_interface(const std::string& map_path,
     m_rot = Eigen::Quaterniond(1, 0, 0, 0);
     // 从配置文件中加载配置参数
     std::tie(m_node_options, m_trajectory_options) = LoadOptions(configuration_directory,configuration_basename);
-    // 调用 cartographer 接口，构造 MapBuilder 类
+    // 调用 cartographer接口，构造 MapBuilder 类
     m_map_builder = absl::make_unique<cartographer::mapping::MapBuilder>(m_node_options.map_builder_options);
     // 纯定位模式下，加载现有的地图数据
     if(m_trajectory_options.trajectory_builder_options.pure_localization())
@@ -27,11 +27,13 @@ cartographer_interface::cartographer_interface(const std::string& map_path,
     // 目前在本项目中使用一个2d雷达 + IMU
     using SensorId = cartographer::mapping::TrajectoryBuilderInterface::SensorId;
     using SensorType = SensorId::SensorType;
+
     // 用什么传感器打开那个传感器
     // 1,配置文件需要更改；2，配置传感器的总配置；3，IMU传感器的回调函数
     m_sensor_ids.insert(SensorId{SensorType::RANGE, "echoes"});// laser 2d
     //m_sensor_ids.insert(SensorId{SensorType::IMU, "imu"});// IMU
     m_sensor_ids.insert(SensorId{SensorType::ODOMETRY, "odom"});
+    //m_sensor_ids.insert(SensorId{SensorType::LANDMARK,"mark"})
     // 调用接口构造一条轨迹，返回轨迹id
     // m_sensor_ids   传感器类型及id
     // trajectory_builder_options 轨迹的配置参数

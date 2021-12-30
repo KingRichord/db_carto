@@ -42,9 +42,7 @@ int main(int argc, char** argv)
             node_handle.advertise<::visualization_msgs::MarkerArray>(
                     "Trajectory", 1);
     // 占用栅格地图
-    ros::Publisher occupancy_grid_publisher = node_handle.advertise<::nav_msgs::OccupancyGrid>(
-            "map", 1,
-            true /* latched */);
+    ros::Publisher occupancy_grid_publisher = node_handle.advertise<::nav_msgs::OccupancyGrid>("map", 1,true);
     // 订阅传感器数据
     // 激光雷达数据 + IMU 数据
     // 调用回调函数 ros_msg::laser_callback  ros_msg::imu_callback

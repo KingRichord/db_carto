@@ -1,6 +1,7 @@
 #include "db_carto.h"
 #include <ros/ros.h>
 #include "sensor_ros.h"
+
 #include <std_msgs/UInt16.h>
 #include <dbrobot_msg/mapping_state.h>
 #include <glog/logging.h>
@@ -18,21 +19,24 @@ private:
     std::shared_ptr<cartographer_interface> localize{nullptr};
     std::shared_ptr<sensor_ros> msg{nullptr};
     ros::NodeHandle m_node;
+    // 业务层
     ros::Subscriber robot_manager_sub_;
     ros::Publisher p_mappping_state_;
     ros::ServiceServer mappping_state_;
-
+    // 算法层
     ros::Publisher occupancy_grid_publisher;
     ros::Subscriber m_laser_subscriber;
     ros::Subscriber m_odometry_subscriber;
+    ros::Subscriber m_landmarker_subscriber;
     ros::Publisher trajectory_node_list_publisher;
+
     bool mapping_;
     bool is_simulation_;
 };
 
 SlamManager::SlamManager()
 {
-    LOG(INFO)<<"Slam管理系统构造完成";
+    LOG(INFO)<<"SLAM管理系统构造完成";
     robot_manager_sub_ = m_node.subscribe("/rm_to_slam", 1, &SlamManager::SlamManagerCallback, this);
     mappping_state_ = m_node.advertiseService<dbrobot_msg::mapping_state::Request, dbrobot_msg::mapping_state::Response>(
             "mapping_state", boost::bind(&SlamManager::mapping_stateCallBack, this, _1, _2));
@@ -40,8 +44,6 @@ SlamManager::SlamManager()
     mapping_ = false;
     ros::spin();
 }
-
-
 bool SlamManager::mapping_stateCallBack(dbrobot_msg::mapping_state::Request &rep,
                                         dbrobot_msg::mapping_state::Response &res) const {
     res.res = mapping_;
@@ -90,6 +92,7 @@ void SlamManager::start_slam() {
                                                                    &sensor_ros::laser_onewave_callback, &*msg);
         //ros::Subscriber m_imu_subscriber = node_handle.subscribe("imu/raw_data",10,&sensor_ros::imu_callback,&msg);
         m_odometry_subscriber = m_node.subscribe("odom", 1, &sensor_ros::odometry_callback, &*msg);
+        //m_landmarker_subscriber =m_node.subscribe("marke")
         ros::Rate loop_rate(20);// 指定循环频率
         int count = 0;
         while (ros::ok()) {
@@ -178,9 +181,8 @@ int main(int argc, char** argv)
         system(fp.c_str());
     }
     google::SetLogDestination(google::INFO, "/home/moi/logdir/carto/carto_");
-    std::cout << "Glog ON" << std::endl;
+    std::cout << "GLOG ON" << std::endl;
 
     ros::init(argc, argv, "my_carto");
     SlamManager slam_manager;
-
 }

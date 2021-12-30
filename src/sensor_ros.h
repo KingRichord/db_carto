@@ -21,7 +21,16 @@
 #include <tf/transform_listener.h>
 #include <tf/transform_broadcaster.h>
 #include <tf/transform_datatypes.h>
-
+struct LandmarkObservation {
+    std::string id;
+    cartographer::transform::Rigid3d landmark_to_tracking_transform;
+    double translation_weight;
+    double rotation_weight;
+};
+struct LandmarkData {
+    cartographer::common::Time time;
+    std::vector<LandmarkObservation> landmark_observations;
+};
 class sensor_ros
 {
 public:
@@ -63,17 +72,19 @@ private:
     static Eigen::Quaterniond QuaternionToEigen(const geometry_msgs::Quaternion & Quaternion) {
         return Eigen::Quaterniond (Quaternion.w,Quaternion.x, Quaternion.y,Quaternion.z);
     }
-    static geometry_msgs::Transform ToGeometryMsgTransform(const cartographer::transform::Rigid3d& rigid3d) {
-        geometry_msgs::Transform transform;
-        transform.translation.x = rigid3d.translation().x();
-        transform.translation.y = rigid3d.translation().y();
-        transform.translation.z = rigid3d.translation().z();
-        transform.rotation.w = rigid3d.rotation().w();
-        transform.rotation.x = rigid3d.rotation().x();
-        transform.rotation.y = rigid3d.rotation().y();
-        transform.rotation.z = rigid3d.rotation().z();
-        return transform;
-    }
+
+    // LandmarkData ToLandmarkData(const LandmarkList& landmark_list) {
+    //     LandmarkData landmark_data;
+    //     landmark_data.time = FromRos(landmark_list.header.stamp);
+    //     for (const LandmarkEntry& entry : landmark_list.landmarks) {
+    //         landmark_data.landmark_observations.push_back(
+    //                 {entry.id, ToRigid3d(entry.tracking_from_landmark_transform),
+    //                  entry.translation_weight, entry.rotation_weight});
+    //     }
+    //     return landmark_data;
+    // }
+
+
     std::unordered_map<int, size_t> trajectory_to_highest_marker_id_;
     std::map<cartographer::mapping::SubmapId, cartographer::io::SubmapSlice> m_submap_slices;
     std::string m_last_frame_id;
