@@ -4,23 +4,29 @@
 #include <ros/ros.h>
 #include "cartographer/mapping/id.h"
 #include "cartographer/io/submap_painter.h"
-#include "nav_msgs/OccupancyGrid.h"
+
 #include "cartographer/mapping/map_builder_interface.h"
 #include "cartographer/transform/transform.h"
-#include "visualization_msgs/MarkerArray.h"
+
 #include "cartographer/mapping/pose_graph_interface.h"
 #include "tf2_ros/transform_broadcaster.h"
+
+#include "db_carto.h"
+#include "tf2_ros/buffer.h"
+#include <tf/transform_listener.h>
+#include <tf/transform_broadcaster.h>
+#include <tf/transform_datatypes.h>
+
+#include "nav_msgs/OccupancyGrid.h"
+#include "geometry_msgs/PoseStamped.h"
 #include <sensor_msgs/Imu.h>
 #include <sensor_msgs/MultiEchoLaserScan.h>
 #include <sensor_msgs/LaserScan.h>
 #include <nav_msgs/Odometry.h>
-#include "db_carto.h"
-#include "tf2_ros/buffer.h"
-#include "geometry_msgs/PoseStamped.h"
+#include "visualization_msgs/MarkerArray.h"
 
-#include <tf/transform_listener.h>
-#include <tf/transform_broadcaster.h>
-#include <tf/transform_datatypes.h>
+#include <dbrobot_msg/QRTagDetections.h>
+
 struct LandmarkObservation {
     std::string id;
     cartographer::transform::Rigid3d landmark_to_tracking_transform;
@@ -69,22 +75,23 @@ private:
     static Eigen::Vector3d ToEigen(const geometry_msgs::Vector3& vector3) {
         return Eigen::Vector3d(vector3.x, vector3.y, vector3.z);
     }
-    static Eigen::Quaterniond QuaternionToEigen(const geometry_msgs::Quaternion & Quaternion) {
-        return Eigen::Quaterniond (Quaternion.w,Quaternion.x, Quaternion.y,Quaternion.z);
+    Eigen::Quaterniond ToEigen(const geometry_msgs::Quaternion& quaternion) {
+        return Eigen::Quaterniond(quaternion.w, quaternion.x, quaternion.y,quaternion.z);
     }
-
-    // LandmarkData ToLandmarkData(const LandmarkList& landmark_list) {
+    cartographer::transform::Rigid3d ToRigid3d(const geometry_msgs::Pose& pose) {
+        return cartographer::transform::Rigid3d({pose.position.x, pose.position.y, pose.position.z},
+                       ToEigen(pose.orientation));
+    }
+    // LandmarkData ToLandmarkData(const  dbrobot_msg::QRTagDetections& landmark_list) {
     //     LandmarkData landmark_data;
     //     landmark_data.time = FromRos(landmark_list.header.stamp);
-    //     for (const LandmarkEntry& entry : landmark_list.landmarks) {
+    //     for (const auto &entry : landmark_list.detections) {
     //         landmark_data.landmark_observations.push_back(
-    //                 {entry.id, ToRigid3d(entry.tracking_from_landmark_transform),
-    //                  entry.translation_weight, entry.rotation_weight});
+    //                 {entry.id, ToRigid3d(entry.pose),
+    //                  (double)entry.tag_size, (double)entry.tag_size});
     //     }
     //     return landmark_data;
     // }
-
-
     std::unordered_map<int, size_t> trajectory_to_highest_marker_id_;
     std::map<cartographer::mapping::SubmapId, cartographer::io::SubmapSlice> m_submap_slices;
     std::string m_last_frame_id;
@@ -95,7 +102,6 @@ private:
     //std::map<std::string, cartographer::common::Time> m_sensor_to_previous_subdivision_time;
     cartographer_interface &m_localization;
 
-    tf::TransformListener m_tf;
     tf::TransformBroadcaster m_tf_broadcaster;
 };
 

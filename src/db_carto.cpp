@@ -55,7 +55,6 @@ cartographer_interface::~cartographer_interface()
 {
     delete m_painted_slices;
     m_map_builder.release();
-
 }
 
 /**

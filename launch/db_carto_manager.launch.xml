@@ -1,0 +1,12 @@
+
+<launch>
+  <param name="/use_sim_time" value="false" />
+
+  <node name="db_carto" pkg="db_carto" type="SlamManager"
+        args="
+          -configuration_directory $(find db_carto)/configuration_files
+          -configuration_basename revo_lds.lua"
+        output="screen"> output="screen">
+  </node>
+
+</launch>

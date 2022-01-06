@@ -5,6 +5,7 @@
 #include <std_msgs/UInt16.h>
 #include <dbrobot_msg/mapping_state.h>
 #include <glog/logging.h>
+
 using TrajectoryState =::cartographer::mapping::PoseGraphInterface::TrajectoryState;
 class SlamManager {
 public:
@@ -15,6 +16,7 @@ public:
     void SlamManagerCallback(const std_msgs::UInt16ConstPtr &msg);
     bool mapping_stateCallBack(dbrobot_msg::mapping_state::Request &rep, dbrobot_msg::mapping_state::Response &res) const;
     std::string TrajectoryStateToString(const TrajectoryState trajectory_state);
+
 private:
     std::shared_ptr<cartographer_interface> localize{nullptr};
     std::shared_ptr<sensor_ros> msg{nullptr};
@@ -37,10 +39,10 @@ private:
 SlamManager::SlamManager()
 {
     LOG(INFO)<<"SLAM管理系统构造完成";
-    robot_manager_sub_ = m_node.subscribe("/rm_to_slam", 1, &SlamManager::SlamManagerCallback, this);
+    robot_manager_sub_ = m_node.subscribe("rm_to_slam", 1, &SlamManager::SlamManagerCallback, this);
     mappping_state_ = m_node.advertiseService<dbrobot_msg::mapping_state::Request, dbrobot_msg::mapping_state::Response>(
             "mapping_state", boost::bind(&SlamManager::mapping_stateCallBack, this, _1, _2));
-    p_mappping_state_ = m_node.advertise<std_msgs::UInt16>("/s_mapping_state", 1);
+    p_mappping_state_ = m_node.advertise<std_msgs::UInt16>("s_mapping_state", 1);
     mapping_ = false;
     ros::spin();
 }
@@ -51,6 +53,7 @@ bool SlamManager::mapping_stateCallBack(dbrobot_msg::mapping_state::Request &rep
 }
 
 SlamManager::~SlamManager() {
+    google::ShutdownGoogleLogging();
 }
 // 返回轨迹的状态
 std::string SlamManager::TrajectoryStateToString(const TrajectoryState trajectory_state) {
@@ -68,50 +71,61 @@ std::string SlamManager::TrajectoryStateToString(const TrajectoryState trajector
 }
 
 void SlamManager::start_slam() {
-        LOG(INFO)<<"开始创建地图";
-        mapping_ = true;
-        std_msgs::UInt16 info;
-        info.data = 1;
-        p_mappping_state_.publish(info);
-        LOG(INFO)<<"创建cartographer核心";
-        localize =  std::make_shared<cartographer_interface>("/home/lyc/Downloads/b2-2016-04-05-14-44-52.bag.pbstream",
-                                              "/home/moi/3_ws/src/slam/db_carto/configuration_files",
-                                              "revo_lds.lua");
-        LOG(INFO)<<"创建订阅消息接口";
-        msg = std::make_shared<sensor_ros>(*localize, 0.03); //修改地图分辨率
-        LOG(INFO)<<"开始订阅消息";
-        trajectory_node_list_publisher =
-                m_node.advertise<visualization_msgs::MarkerArray>(
-                        "Trajectory", 1);
-        // 占用栅格地图
-        occupancy_grid_publisher = m_node.advertise<nav_msgs::OccupancyGrid>("map", 1,true);
-        // 订阅传感器数据
-        // 激光雷达数据 + IMU 数据
-        // 调用回调函数 ros_msg::laser_callback  ros_msg::imu_callback
-        m_laser_subscriber = m_node.subscribe("scan_mapping", 1,
-                                                                   &sensor_ros::laser_onewave_callback, &*msg);
-        //ros::Subscriber m_imu_subscriber = node_handle.subscribe("imu/raw_data",10,&sensor_ros::imu_callback,&msg);
-        m_odometry_subscriber = m_node.subscribe("odom", 1, &sensor_ros::odometry_callback, &*msg);
-        //m_landmarker_subscriber =m_node.subscribe("marke")
-        ros::Rate loop_rate(20);// 指定循环频率
-        int count = 0;
-        while (ros::ok()) {
-            count++;
-            // 发布地图和轨迹数据
-            if (count % 40 == 0) //20HZ，五秒发布一次
-            {
-                LOG(INFO) << "发布地图更新!";
-                occupancy_grid_publisher.publish(*msg->DrawAndPublish()); // publish map
-            }
-            if (count % 2 == 0) {
-                std_msgs::UInt16 info;info.data = 1;
-                p_mappping_state_.publish(info);
-                msg->publishTF();
-            }
+    while (msg != nullptr && localize != nullptr) {
+        LOG(WARNING) << "建图进程没有结束，正在手动结束!";
+        end_slam();
+    }
+    LOG(INFO) << "开始创建地图";
+    mapping_ = true;
+    std_msgs::UInt16 info;
+    info.data = 1;
+    p_mappping_state_.publish(info);
+    LOG(INFO) << "创建cartographer核心";
+    localize = std::make_shared<cartographer_interface>("/home/lyc/Downloads/b2-2016-04-05-14-44-52.bag.pbstream",
+                                                        "/home/moi/3_ws/src/slam/db_carto/configuration_files",
+                                                        "revo_lds.lua");
+    // localize =  std::make_shared<cartographer_interface>("/home/lyc/Downloads/b2-2016-04-05-14-44-52.bag.pbstream",
+    //                                                      "/home/moi/MOI_All_Projects/DBRobot_Core/src/dbrobot_mapping_localization/mapping_and_localization_2d/db_carto/configuration_files",
+    //                                                      "revo_lds.lua");
+    LOG(INFO) << "创建订阅消息接口";
+    msg = std::make_shared<sensor_ros>(*localize, 0.03); //修改地图分辨率
+    LOG(INFO) << "开始订阅消息";
+    trajectory_node_list_publisher =
+            m_node.advertise<visualization_msgs::MarkerArray>(
+                    "Trajectory", 1);
+    // 占用栅格地图
+    occupancy_grid_publisher = m_node.advertise<nav_msgs::OccupancyGrid>("slam_map", 1, true);
+    // 订阅传感器数据
+    // 激光雷达数据 + IMU 数据
+    // 调用回调函数 ros_msg::laser_callback  ros_msg::imu_callback
+    m_laser_subscriber = m_node.subscribe("scan_mapping", 1,
+                                          &sensor_ros::laser_onewave_callback, &*msg);
+    //ros::Subscriber m_imu_subscriber = node_handle.subscribe("imu/raw_data",10,&sensor_ros::imu_callback,&msg);
+    m_odometry_subscriber = m_node.subscribe("odom", 1, &sensor_ros::odometry_callback, &*msg);
+    //m_landmarker_subscriber =m_node.subscribe("marker")
+    ros::Rate loop_rate(20);// 指定循环频率
+    int count = 0;
+    while (ros::ok()) {
+        count++;
+        // 发布地图和轨迹数据
+        if (count % 100 == 0) //20HZ，五秒发布一次
+        {
+            LOG(INFO) << "发布地图更新!";
+            occupancy_grid_publisher.publish(*msg->DrawAndPublish()); // publish map
             trajectory_node_list_publisher.publish(msg->GetTrajectoryNodeList());
-            ros::spinOnce();
-            loop_rate.sleep();
         }
+        if (count % 2 == 0) {
+            std_msgs::UInt16 info;
+            info.data = 1;
+            p_mappping_state_.publish(info);
+            msg->publishTF();
+        }
+        std_msgs::UInt16 info;
+        info.data = 0;
+        p_mappping_state_.publish(info);
+        ros::spinOnce();
+        loop_rate.sleep();
+    }
 }
 
 void SlamManager::end_slam() {
@@ -142,8 +156,8 @@ void SlamManager::end_slam() {
         m_odometry_subscriber.shutdown();
         occupancy_grid_publisher.shutdown();
         trajectory_node_list_publisher.shutdown();
-        msg.reset();
-        localize.reset();
+        msg= nullptr;
+        localize= nullptr;
         mapping_ = false;
         LOG(WARNING)<<"建图结束";
         while (ros::ok()) {
@@ -155,7 +169,6 @@ void SlamManager::end_slam() {
         }
     }
 }
-
 void SlamManager::SlamManagerCallback(const std_msgs::UInt16ConstPtr &msg) {
     if (msg->data == 0) {
         start_slam();
@@ -176,13 +189,14 @@ int main(int argc, char** argv)
     FLAGS_alsologtostderr = true; // 设置日志消息除了日志文件之外是否需要标准输出
     if (access ( "/home/moi/logdir/carto/",0) == -1)
     {
-        std::string fp = "mkdir -p ";
+        std::string fp = "mkdir -p";
         fp = fp + "/home/moi/logdir/carto/";
         system(fp.c_str());
     }
     google::SetLogDestination(google::INFO, "/home/moi/logdir/carto/carto_");
-    std::cout << "GLOG ON" << std::endl;
+    std::cout << "Cartographer GLOG ON" << std::endl;
 
     ros::init(argc, argv, "my_carto");
     SlamManager slam_manager;
+    return 0;
 }

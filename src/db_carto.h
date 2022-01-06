@@ -125,8 +125,6 @@ private:
     std::unique_ptr<cartographer::mapping::MapBuilderInterface> m_map_builder;
     NodeOptions m_node_options;
     TrajectoryOptions m_trajectory_options;
-
-
 };
 
 

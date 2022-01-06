@@ -1,8 +1,9 @@
 project(db_carto)
 
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.5)
 set(CMAKE_CXX_STANDARD 14)
 set(cartographer_DIR /home/moi/include/cartographer/share/cartographer)
+#set(cartographer_DIR /home/moi/MOI_All_Projects/DBRobot_Core/thirdparty/cartographer)
 
 # 日志相关
 #list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)

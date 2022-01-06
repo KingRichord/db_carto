@@ -24,7 +24,6 @@ sensor_ros::~sensor_ros()
     trajectory_to_highest_marker_id_.clear();
     m_submap_slices.clear();
     m_map_builder.release();
-    m_tf.clear();
 }
 /**
  * @brief  TF发布函数
@@ -38,7 +37,6 @@ void sensor_ros::publishTF(void)
                     tf::Quaternion{T_map_odom.rotation().x(),T_map_odom.rotation().y(),T_map_odom.rotation().z(),T_map_odom.rotation().w()},
                     tf::Point(T_map_odom.translation().x(),T_map_odom.translation().y(),T_map_odom.translation().z())
             );
-
     m_tf_broadcaster.sendTransform(tf::StampedTransform(tf_base2map_, ros::Time::now(), "base_link", "map"));
 }
 /**
@@ -197,7 +195,7 @@ std::unique_ptr<cartographer::sensor::OdometryData> sensor_ros::ToOdomData(
     //构造  cartographer格式数据
    geometry_msgs::Vector3 vector3;
    vector3.x =msg->pose.pose.position.x;vector3.y =msg->pose.pose.position.y;vector3.z =msg->pose.pose.position.z;
-   cartographer::transform::Rigid3d pose{ToEigen(vector3),QuaternionToEigen(msg->pose.pose.orientation)};
+   cartographer::transform::Rigid3d pose{ToEigen(vector3),ToEigen(msg->pose.pose.orientation)};
 
     return absl::make_unique<cartographer::sensor::OdometryData>(
             cartographer::sensor::OdometryData{time,pose});
@@ -429,11 +427,17 @@ sensor_ros::CreateOccupancyGridMsg(const cartographer::io::PaintSubmapSlicesResu
             const uint32_t packed = pixel_data[y * width + x];
             const unsigned char color = packed >> 16;
             const unsigned char observed = packed >> 8;
-            int value =
-                    observed == 0
-                    ? -1
-                    : ::cartographer::common::RoundToInt((1. - color / 255.) * 100.);
-            CHECK_LE(-1, value);
+            // 默认生成图
+            // int value =
+            //         observed == 0
+            //         ? -1
+            //         : ::cartographer::common::RoundToInt((1. - color / 255.) * 100.);
+            // 修改后的,兼容之前的地图
+            int value_temp = ::cartographer::common::RoundToInt((1. - color / 255.) * 100. );
+            if (value_temp > 49){value_temp = 100;}
+            else{value_temp = 0;}
+            const int value = observed ==0 ? -1 : value_temp;
+            CHECK_LE(-1,value);
             CHECK_GE(100, value);
             occupancy_grid->data.push_back(value);
         }
